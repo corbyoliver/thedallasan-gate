@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thedallasan-gate"
+version = "1.0.0"
+description = "Shared thedallasan.shop SSO gate for the apps on the Hetzner box"
+requires-python = ">=3.10"
+dependencies = ["flask>=2.0", "itsdangerous>=2.0"]
+
+[project.optional-dependencies]
+# Only FastAPI/Starlette apps need this; Flask apps stay lean.
+asgi = ["starlette>=0.27"]
+dev = ["pytest>=7", "starlette>=0.27", "httpx"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

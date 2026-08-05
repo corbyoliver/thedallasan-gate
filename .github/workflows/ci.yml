@@ -1,0 +1,31 @@
+name: CI
+
+# Five apps import this package, so a bug here breaks all five at once. Until
+# 2026-08-05 nothing ran these tests automatically (#1) — the one repo the fleet
+# depends on was the one repo with no CI.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      # The consumers are not all on one version: the server runs 3.14, CI for
+      # the apps pins 3.12, and pyproject claims >=3.10. Test the claim.
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        run: python -m pytest -q

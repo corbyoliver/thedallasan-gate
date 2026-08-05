@@ -1,7 +1,7 @@
 # thedallasan-gate
 
 One implementation of the shared `.thedallasan.shop` SSO gate, imported by every
-app on the Hetzner box instead of being reimplemented in each.
+app on the server instead of being reimplemented in each.
 
 ## Why
 
@@ -63,24 +63,30 @@ unioning would let a path be opened without that being visible where it happens.
 
 ## Install
 
-The box has no GitHub credentials — apps are rsync'd, not cloned — so the package
-is shipped to `/srv/lib/thedallasan-gate` and installed into each app venv from
-that path:
+Pin by tag, as a real dependency line:
 
-```bash
-ssh hetzner-root '/srv/<app>/venv/bin/pip install -U /srv/lib/thedallasan-gate'
+```
+thedallasan-gate @ git+https://github.com/corbyoliver/thedallasan-gate@v1.0.0
 ```
 
-Locally: `pip install -e ~/Sessions/thedallasan-gate`.
+For development: `pip install -e .`
+
+> This package was private until 2026-08-05, installed from a wheel copied onto
+> the server by hand and recorded in each consumer's `requirements.txt` as a
+> **comment**. A comment cannot fail, so pip never knew about a hard dependency:
+> CI could not install the package, and five repos sat red for a week reporting a
+> failure unrelated to anything anyone pushed. Making it fetchable is what fixed
+> that. Nothing here is secret — the gate reads `FLASK_SECRET_KEY` from the
+> environment, and that is what the security rests on.
 
 ## The trade
 
 Five apps now share one implementation, so a bug here breaks all five at once.
 That is the cost of having only one place to get it right. Two things pay for it:
 the test suite in `tests/`, which pins the behaviours whose absence caused the
-original incidents, and `/srv/conformance.py`, which verifies every app's **live**
-gate nightly by making an unauthenticated request — so a regression shows up
-against the running system rather than only in review.
+original incidents, and a nightly conformance job on the server, which verifies
+every app's **live** gate by making an unauthenticated request — so a regression
+shows up against the running system rather than only in review.
 
 ## Tests
 

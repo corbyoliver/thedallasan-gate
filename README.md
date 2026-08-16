@@ -56,6 +56,45 @@ asserts there never is — that parameter is the bug this package exists to remo
 | `api_prefixes` | `("/api/",)` | Paths under these get a JSON 401 instead of a redirect. |
 | `max_age` | 31 days | ASGI only — caps how long a captured cookie stays replayable. |
 | `extra_allow` | `None` | ASGI only — a predicate for an app-specific bypass. |
+| `session_epoch_path` | `None` | Opts this app into central revocation (below). `None` = unchanged behaviour. |
+
+## Session revocation (#27)
+
+There is no server-side session store — a cookie is valid until it expires (31
+days) or `FLASK_SECRET_KEY` changes, and rotating that secret means hand-editing
+`.env` on all five apps. `session_epoch_path` gives a cheaper kill switch:
+
+```python
+install_flask_gate(app, session_epoch_path="/srv/.session-epoch")
+```
+
+Every opted-in app compares the session's `session_epoch` claim against that
+file's live contents on every request — not a value cached at startup, so a
+revoke takes effect on the very next request, no restart. The app that mints
+the cookie (home-site) must stamp the current value in at login:
+
+```python
+from thedallasan_gate import load_epoch
+session["session_epoch"] = load_epoch("/srv/.session-epoch")
+```
+
+To revoke every outstanding session on every opted-in app at once:
+
+```bash
+python3 scripts/revoke_sessions.py /srv/.session-epoch
+```
+
+Three things worth knowing:
+
+- **Opt-in per app, not a flag day.** Passing `None` (the default) leaves an
+  app's behaviour byte-for-byte identical to v1.0.0. Adopt it app by app.
+- **Missing the file when opted in is a startup error, never a silent no-op** —
+  `load_epoch()` raises at install/construction time, the same contract
+  `load_secret()` already has for `FLASK_SECRET_KEY`. Bootstrap the file once
+  with `revoke_sessions.py` before turning this on in any app.
+- **Turning it on for the first time revokes every existing session on that
+  app**, including whoever is currently logged in — an old cookie carries no
+  `session_epoch` claim to match, by construction. Expected, not a bug.
 
 `exempt_paths` replaces rather than extends deliberately: an app opening a path
 should see the full list of what it is opening, at the call site. Silently

@@ -17,7 +17,7 @@ from flask import jsonify, redirect, request, session
 
 from .core import (COOKIE_CONFIG, DEFAULT_API_PREFIXES, DEFAULT_EXEMPT_PATHS,
                    DEFAULT_GATE_URL, DEFAULT_MAX_AGE, GatePolicy, decide,
-                   load_secret)
+                   load_epoch, load_secret)
 
 
 def install_flask_gate(
@@ -29,6 +29,7 @@ def install_flask_gate(
     api_prefixes: tuple[str, ...] = DEFAULT_API_PREFIXES,
     secret_var: str = "FLASK_SECRET_KEY",
     env: dict[str, str] | None = None,
+    session_epoch_path: str | None = None,
 ) -> GatePolicy:
     """Configure `app` for the shared SSO cookie and gate every request.
 
@@ -40,8 +41,20 @@ def install_flask_gate(
     that needs an extra open path must restate /api/health and see the full list
     of what it is opening. Silently unioning would let an app open a path without
     that showing up at the call site.
+
+    `session_epoch_path` opts this app into central session revocation (#27):
+    a cookie is only honoured when it carries the current epoch token from that
+    file, so bumping the file (scripts/revoke_sessions.py) instantly logs every
+    session out on its next request, on every app that passed this. None (the
+    default) leaves this app's behaviour byte-for-byte unchanged — revocation
+    is per-app opt-in, not a flag day for the whole fleet. Passed, but the file
+    does not exist yet: raises now, at install time, rather than degrading the
+    feature into a no-op on the first request that needs it.
     """
     secret = load_secret(env, secret_var)
+    if session_epoch_path is not None:
+        load_epoch(session_epoch_path)              # fail at startup, not mid-request
+
     app.secret_key = secret
     app.config.update(COOKIE_CONFIG)
     app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(seconds=DEFAULT_MAX_AGE)
@@ -56,8 +69,13 @@ def install_flask_gate(
 
     @app.before_request
     def _thedallasan_gate():                       # noqa: ANN202 — Flask hook
-        d = decide(policy, request.path, bool(session.get("logged_in")),
-                   request.endpoint)
+        logged_in = bool(session.get("logged_in"))
+        # Re-read on every request, deliberately not cached at install time —
+        # see load_epoch(). A stale in-process copy would mean a revoke takes
+        # effect only after the app restarts, which is not what "revoke" means.
+        if logged_in and session_epoch_path is not None:
+            logged_in = session.get("session_epoch") == load_epoch(session_epoch_path)
+        d = decide(policy, request.path, logged_in, request.endpoint)
         if d.allowed:
             return None
         if d.action == "json401":

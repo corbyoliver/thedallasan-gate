@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "thedallasan-gate"
-version = "1.0.0"
+version = "1.1.0"
 description = "Shared thedallasan.shop SSO gate — one cookie check for every app"
 requires-python = ">=3.10"
 dependencies = ["flask>=2.0", "itsdangerous>=2.0"]

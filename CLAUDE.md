@@ -14,6 +14,17 @@ this package was created to delete from three apps. `load_secret()` raises,
 an `enabled` / `disable` / `optional` parameter. Do not "helpfully" add one for
 local dev — set a dummy key in the environment instead.
 
+## The same invariant applies to session-epoch revocation (#27, added v1.1.0)
+
+`session_epoch_path` is opt-in (`None` by default, unchanged behaviour), but
+once an app opts in, a missing or unreadable epoch file must raise
+(`GateConfigError` via `load_epoch()`) — never silently skip the check. That
+would be the exact `GATE_ENABLED = bool(secret)` bug arriving through a second
+config knob. Read `load_epoch()` fresh on every request, never cache it at
+install time — a revoke has to take effect without an app restart, or the
+"kill switch" framing in the README is a lie for however long the stale copy
+lingers.
+
 ## Testing gotchas
 
 - Werkzeug's test client does **not** send a cookie registered against

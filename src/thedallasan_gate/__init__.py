@@ -19,16 +19,17 @@ import it.
 
 Both raise rather than degrade when the secret is missing.
 """
-from .core import (COOKIE_CONFIG, DEFAULT_API_PREFIXES, DEFAULT_EXEMPT_PATHS,
-                   DEFAULT_GATE_URL, DEFAULT_MAX_AGE, Decision, GateConfigError,
-                   GatePolicy, decide, load_secret)
+from .core import (COOKIE_CONFIG, DEFAULT_API_PREFIXES, DEFAULT_EPOCH_PATH,
+                   DEFAULT_EXEMPT_PATHS, DEFAULT_GATE_URL, DEFAULT_MAX_AGE,
+                   Decision, GateConfigError, GatePolicy, decide, load_epoch,
+                   load_secret)
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 __all__ = [
-    "COOKIE_CONFIG", "DEFAULT_API_PREFIXES", "DEFAULT_EXEMPT_PATHS",
-    "DEFAULT_GATE_URL", "DEFAULT_MAX_AGE", "Decision", "GateConfigError",
-    "GatePolicy", "decide", "load_secret",
+    "COOKIE_CONFIG", "DEFAULT_API_PREFIXES", "DEFAULT_EPOCH_PATH",
+    "DEFAULT_EXEMPT_PATHS", "DEFAULT_GATE_URL", "DEFAULT_MAX_AGE", "Decision",
+    "GateConfigError", "GatePolicy", "decide", "load_epoch", "load_secret",
     "install_flask_gate", "GateMiddleware", "flask_session_serializer",
 ]
 

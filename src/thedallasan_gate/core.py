@@ -12,6 +12,7 @@ each reimplemented it and three got the same detail wrong.
 from __future__ import annotations
 
 import os
+import pathlib
 from dataclasses import dataclass, field
 
 DEFAULT_GATE_URL = "https://thedallasan.shop/"
@@ -62,6 +63,43 @@ def load_secret(env: dict[str, str] | None = None, var: str = "FLASK_SECRET_KEY"
             f"authenticate anyone and would serve every route publicly."
         )
     return secret
+
+
+# Where the shared revocation token lives. One file, read by every opted-in
+# app on every request — bumping its contents (see scripts/revoke_sessions.py)
+# invalidates every outstanding session cookie across every app that checks it,
+# without touching FLASK_SECRET_KEY (which would require redistributing a new
+# secret to all five apps' .env files to have the same effect).
+DEFAULT_EPOCH_PATH = "/srv/.session-epoch"
+
+
+def load_epoch(path: str | os.PathLike = DEFAULT_EPOCH_PATH) -> str:
+    """The current session epoch, or raise.
+
+    Mirrors load_secret() on purpose: revocation is opt-in per app (pass
+    session_epoch_path to install_flask_gate/GateMiddleware), but once an app
+    HAS opted in, a missing epoch file must not silently mean "revocation
+    feature quietly does nothing" — that is the exact failure class this
+    whole package exists to delete, arriving through a second config knob
+    instead of the first. Bootstrap the file once with
+    scripts/revoke_sessions.py before enabling this in any app.
+
+    Read fresh on every call rather than cached: a bump must take effect on
+    an app's very next request, with no restart, or the "kill switch" framing
+    is a lie for however long the stale value lingers.
+    """
+    try:
+        value = pathlib.Path(path).read_text().strip()
+    except OSError as exc:
+        raise GateConfigError(
+            f"session epoch file {path} is required because session-epoch "
+            f"revocation was enabled for this app, but the file does not "
+            f"exist — bootstrap it once with scripts/revoke_sessions.py "
+            f"before turning this on."
+        ) from exc
+    if not value:
+        raise GateConfigError(f"session epoch file {path} is empty")
+    return value
 
 
 @dataclass(frozen=True)

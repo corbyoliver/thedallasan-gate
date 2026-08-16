@@ -24,7 +24,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, RedirectResponse
 
 from .core import (DEFAULT_API_PREFIXES, DEFAULT_EXEMPT_PATHS, DEFAULT_GATE_URL,
-                   DEFAULT_MAX_AGE, GatePolicy, decide)
+                   DEFAULT_MAX_AGE, GatePolicy, decide, load_epoch)
 
 
 def flask_session_serializer(secret_key: str) -> URLSafeTimedSerializer:
@@ -52,16 +52,20 @@ class GateMiddleware(BaseHTTPMiddleware):
                  exempt_paths: set[str] | frozenset[str] | None = None,
                  api_prefixes: tuple[str, ...] = DEFAULT_API_PREFIXES,
                  max_age: int = DEFAULT_MAX_AGE,
-                 extra_allow: Callable[[Request], bool] | None = None):
+                 extra_allow: Callable[[Request], bool] | None = None,
+                 session_epoch_path: str | None = None):
         super().__init__(app)
         if not secret_key:
             # Defence in depth: callers get the secret from load_secret(), which
             # already raises. This makes it impossible to construct a middleware
             # that silently permits everything even by passing "" directly.
             raise ValueError("GateMiddleware requires a non-empty secret_key")
+        if session_epoch_path is not None:
+            load_epoch(session_epoch_path)          # fail at construction, not mid-request
         self._serializer = flask_session_serializer(secret_key)
         self._max_age = max_age
         self._extra_allow = extra_allow
+        self._session_epoch_path = session_epoch_path
         self._policy = GatePolicy(
             gate_url=gate_url,
             exempt_paths=frozenset(exempt_paths) if exempt_paths is not None
@@ -77,7 +81,13 @@ class GateMiddleware(BaseHTTPMiddleware):
             data = self._serializer.loads(cookie, max_age=self._max_age)
         except Exception:                          # noqa: BLE001 — any failure is a no
             return False
-        return bool(isinstance(data, dict) and data.get("logged_in"))
+        if not (isinstance(data, dict) and data.get("logged_in")):
+            return False
+        # See flask_gate.py's install_flask_gate — same feature, same reasoning.
+        # Read fresh every request so a revoke takes effect without a restart.
+        if self._session_epoch_path is not None:
+            return data.get("session_epoch") == load_epoch(self._session_epoch_path)
+        return True
 
     def _allowed_by_extra(self, request: Request) -> bool:
         if self._extra_allow is None:

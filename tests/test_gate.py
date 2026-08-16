@@ -218,6 +218,7 @@ def test_expired_cookie_is_rejected_by_the_asgi_adapter():
 
     mw = GateMiddleware.__new__(GateMiddleware)
     mw._serializer = ser
+    mw._session_epoch_path = None
     # A freshly-minted token is 0 seconds old, and itsdangerous expires on
     # `age > max_age` — so max_age=0 does NOT expire it. A negative cap does.
     mw._max_age = -1

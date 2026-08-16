@@ -25,6 +25,17 @@ install time — a revoke has to take effect without an app restart, or the
 "kill switch" framing in the README is a lie for however long the stale copy
 lingers.
 
+## `revoke_sessions.py` writes the epoch file world-readable (0o644), not root-only
+
+It used to write `0o600` on the assumption every consuming app runs as root
+— wrong (`dotfiles/ssh/ACCESS.md` has the corrected list; 5 of 11 app
+services on the box run as `deploy`), and it caused a real ~40min lockout
+(#3, 2026-08-16): `home-site` runs as `deploy`, couldn't read a root-only
+file it needs on every login, and 500'd. The epoch value isn't a secret —
+forging a session cookie still needs `FLASK_SECRET_KEY` — so
+world-readable/root-writable is the *correct* model here, not a relaxation.
+Don't revert this without re-verifying every consuming app's `User=`.
+
 ## Testing gotchas
 
 - Werkzeug's test client does **not** send a cookie registered against

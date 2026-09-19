@@ -34,7 +34,7 @@ def test_load_secret_raises_on_whitespace_only():
 def test_install_flask_gate_refuses_to_configure_without_a_secret():
     app = Flask(__name__)
     with pytest.raises(GateConfigError):
-        install_flask_gate(app, env={})
+        install_flask_gate(app, env={}, session_epoch_path=None)
 
 
 def test_there_is_no_way_to_ask_for_a_disabled_gate():
@@ -44,6 +44,33 @@ def test_there_is_no_way_to_ask_for_a_disabled_gate():
     sig = inspect.signature(install_flask_gate)
     for banned in ("enabled", "disable", "optional", "require_auth"):
         assert banned not in sig.parameters
+
+
+def test_session_epoch_path_has_no_default():
+    """#5: two of five v1.1.0 rollout branches passed CI while enabling
+    central revocation for nobody, because forgetting `session_epoch_path`
+    silently kept it at its old default of None — the exact "absence of
+    config is a mode switch" bug this package exists to delete, arriving
+    through its own second knob. A default here, ever again, is that bug
+    coming back; there must be no way to leave the choice unstated."""
+    import inspect
+    from thedallasan_gate.asgi_gate import GateMiddleware
+    sig = inspect.signature(install_flask_gate)
+    assert sig.parameters["session_epoch_path"].default is inspect.Parameter.empty
+    sig = inspect.signature(GateMiddleware.__init__)
+    assert sig.parameters["session_epoch_path"].default is inspect.Parameter.empty
+
+
+def test_omitting_session_epoch_path_is_a_typeerror_not_a_silent_default():
+    """The behavioural half of the guard above: not just that the signature
+    carries no default, but that calling without it actually fails loud."""
+    app = Flask(__name__)
+    with pytest.raises(TypeError):
+        install_flask_gate(app, env={"FLASK_SECRET_KEY": SECRET})
+
+    from thedallasan_gate.asgi_gate import GateMiddleware
+    with pytest.raises(TypeError):
+        GateMiddleware(lambda *a: None, secret_key=SECRET)
 
 
 # ── Core policy ──────────────────────────────────────────────────────────────
@@ -80,6 +107,7 @@ def test_health_probe_is_open_by_default():
 # ── Flask adapter, end to end ────────────────────────────────────────────────
 def _app(**kw):
     app = Flask(__name__)
+    kw.setdefault("session_epoch_path", None)
     install_flask_gate(app, env={"FLASK_SECRET_KEY": SECRET}, **kw)
 
     @app.route("/")
@@ -231,4 +259,4 @@ def test_expired_cookie_is_rejected_by_the_asgi_adapter():
 def test_asgi_adapter_refuses_an_empty_secret():
     from thedallasan_gate.asgi_gate import GateMiddleware
     with pytest.raises(ValueError):
-        GateMiddleware(lambda *a: None, secret_key="")
+        GateMiddleware(lambda *a: None, secret_key="", session_epoch_path=None)

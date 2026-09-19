@@ -16,14 +16,37 @@ local dev — set a dummy key in the environment instead.
 
 ## The same invariant applies to session-epoch revocation (#27, added v1.1.0)
 
-`session_epoch_path` is opt-in (`None` by default, unchanged behaviour), but
-once an app opts in, a missing or unreadable epoch file must raise
+`session_epoch_path` is opt-in (a caller passes `None` to decline), but once
+an app opts in, a missing or unreadable epoch file must raise
 (`GateConfigError` via `load_epoch()`) — never silently skip the check. That
 would be the exact `GATE_ENABLED = bool(secret)` bug arriving through a second
 config knob. Read `load_epoch()` fresh on every request, never cache it at
 install time — a revoke has to take effect without an app restart, or the
 "kill switch" framing in the README is a lie for however long the stale copy
 lingers.
+
+**⚠️ AS OF v2.0.0 (#5), `session_epoch_path` HAS NO DEFAULT — the invariant
+above used to have a hole one level up.** Five `v1.1.0` rollout branches
+across the consumer repos were reviewed on 2026-08-18; the two that passed CI
+did so because forgetting the kwarg silently kept it at `None` — a caller
+could not tell "opted out on purpose" from "the person writing this branch
+never thought about it" from the diff, from CI, or from the running app. That
+is `GATE_ENABLED = bool(secret)` again, just one config knob further out than
+the first fix reached. Omitting `session_epoch_path` is now a `TypeError` at
+the call site: `install_flask_gate`/`GateMiddleware.__init__` require it,
+with no default, and `test_session_epoch_path_has_no_default` +
+`test_omitting_session_epoch_path_is_a_typeerror_not_a_silent_default` in
+`tests/test_gate.py` fail the build if a default is ever reintroduced — the
+epoch-specific sibling of `test_there_is_no_way_to_ask_for_a_disabled_gate`.
+**Do not give it a default of any kind, including `DEFAULT_EPOCH_PATH`** —
+that would auto-enroll every future caller into revocation without them
+deciding to, which is the opposite mistake in the same family: a decision
+made by a default is still a decision nobody visibly made.
+
+Every consumer still pinned at `@v1.0.0`/`@v1.1.0` in its `requirements.txt`
+is unaffected by this until someone deliberately bumps that pin — see
+README's Install section. Bumping a pin means adding the kwarg at that app's
+call site in the same commit; it will not build without it.
 
 ## `revoke_sessions.py` writes the epoch file world-readable (0o644), not root-only
 

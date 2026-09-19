@@ -7,8 +7,12 @@ things that would quietly defeat that:
     (load_epoch mirrors load_secret on purpose — see core.py);
   - the value must be read fresh every request, not cached at install time,
     or a bump would not take effect until every app restarted.
-And the one thing that must NOT change: an app that never opts in
-(session_epoch_path=None, the default) behaves exactly as before v1.1.0.
+And the one thing that must NOT change: an app that explicitly declines
+(session_epoch_path=None) behaves exactly as before v1.1.0. As of v2.0.0 (#5)
+that decision must be explicit — see test_gate.py's
+test_session_epoch_path_has_no_default and
+test_omitting_session_epoch_path_is_a_typeerror_not_a_silent_default for the
+part of this contract that changed and why.
 """
 from __future__ import annotations
 
@@ -56,11 +60,14 @@ def test_epoch_path_missing_raises_at_install_time(tmp_path):
                            session_epoch_path=str(tmp_path / "nope"))
 
 
-def test_default_behaviour_is_unchanged_when_epoch_path_is_not_passed():
-    """Backward compatibility for the five apps already on v1.0.0: upgrading
-    the package without passing session_epoch_path must not change behaviour."""
+def test_declining_explicitly_behaves_exactly_as_before_v1_1_0():
+    """An app that passes session_epoch_path=None gets byte-for-byte the same
+    behaviour v1.0.0 apps had — v2.0.0 (#5) only removed the SILENT version of
+    this (see test_gate.py's test_omitting_session_epoch_path_is_a_typeerror...
+    for that half), it did not remove the ability to decline."""
     app = Flask(__name__)
-    install_flask_gate(app, env={"FLASK_SECRET_KEY": SECRET})  # must not raise
+    install_flask_gate(app, env={"FLASK_SECRET_KEY": SECRET},
+                       session_epoch_path=None)  # must not raise
     c = app.test_client()
     with c.session_transaction() as s:
         s["logged_in"] = True

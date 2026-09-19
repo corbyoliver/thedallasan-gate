@@ -29,7 +29,7 @@ def install_flask_gate(
     api_prefixes: tuple[str, ...] = DEFAULT_API_PREFIXES,
     secret_var: str = "FLASK_SECRET_KEY",
     env: dict[str, str] | None = None,
-    session_epoch_path: str | None = None,
+    session_epoch_path: str | None,
 ) -> GatePolicy:
     """Configure `app` for the shared SSO cookie and gate every request.
 
@@ -45,11 +45,19 @@ def install_flask_gate(
     `session_epoch_path` opts this app into central session revocation (#27):
     a cookie is only honoured when it carries the current epoch token from that
     file, so bumping the file (scripts/revoke_sessions.py) instantly logs every
-    session out on its next request, on every app that passed this. None (the
-    default) leaves this app's behaviour byte-for-byte unchanged — revocation
-    is per-app opt-in, not a flag day for the whole fleet. Passed, but the file
-    does not exist yet: raises now, at install time, rather than degrading the
-    feature into a no-op on the first request that needs it.
+    session out on its next request, on every app that passed this. Revocation
+    is still per-app opt-in, not a flag day for the whole fleet — but the
+    decision must now be STATED, not implied by leaving the argument off.
+
+    ⚠️ NO DEFAULT (#5, v2.0.0). Two of five v1.1.0 rollout branches passed CI
+    while enabling nothing at all, because forgetting this kwarg silently kept
+    it at None — the exact "absence of config is a mode switch" bug this whole
+    package exists to delete, arriving through its own second knob. Pass
+    `session_epoch_path=None` to explicitly decline, or a path (normally
+    `DEFAULT_EPOCH_PATH`) to enable. Omitting it entirely is now a TypeError at
+    the call site rather than a silent no-op. Passed, but the file does not
+    exist yet: raises now, at install time, rather than degrading the feature
+    into a no-op on the first request that needs it.
     """
     secret = load_secret(env, secret_var)
     if session_epoch_path is not None:

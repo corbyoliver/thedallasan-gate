@@ -8,7 +8,8 @@ across Flask versions.
     from thedallasan_gate import GateMiddleware, load_secret
 
     app.add_middleware(GateMiddleware, secret_key=load_secret(),
-                       exempt_paths={"/api/health", "/quick-log"})
+                       exempt_paths={"/api/health", "/quick-log"},
+                       session_epoch_path=None)   # or a path — no default (#5)
 
 Requires the `asgi` extra: `pip install thedallasan-gate[asgi]`.
 """
@@ -45,6 +46,10 @@ class GateMiddleware(BaseHTTPMiddleware):
     header token. It is consulted only after the cookie check fails, so it can
     widen access but never narrow it, and an exception inside it is treated as
     "not allowed" rather than propagating.
+
+    `session_epoch_path` has NO DEFAULT (#5, v2.0.0) — see install_flask_gate's
+    docstring in flask_gate.py for why. Pass `None` to decline central session
+    revocation for this app, or a path to enable it.
     """
 
     def __init__(self, app, secret_key: str, *,
@@ -53,7 +58,7 @@ class GateMiddleware(BaseHTTPMiddleware):
                  api_prefixes: tuple[str, ...] = DEFAULT_API_PREFIXES,
                  max_age: int = DEFAULT_MAX_AGE,
                  extra_allow: Callable[[Request], bool] | None = None,
-                 session_epoch_path: str | None = None):
+                 session_epoch_path: str | None):
         super().__init__(app)
         if not secret_key:
             # Defence in depth: callers get the secret from load_secret(), which

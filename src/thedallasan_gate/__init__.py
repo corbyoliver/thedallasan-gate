@@ -11,20 +11,24 @@ import it.
 
     # Flask
     from thedallasan_gate import install_flask_gate
-    install_flask_gate(app)
+    install_flask_gate(app, session_epoch_path=None)   # or a path — no default (#5)
 
     # FastAPI / Starlette
     from thedallasan_gate import GateMiddleware, load_secret
-    app.add_middleware(GateMiddleware, secret_key=load_secret())
+    app.add_middleware(GateMiddleware, secret_key=load_secret(),
+                       session_epoch_path=None)
 
-Both raise rather than degrade when the secret is missing.
+Both raise rather than degrade when the secret is missing. `session_epoch_path`
+has no default either (v2.0.0, #5) — a caller must say `None` (decline central
+revocation) or a path (enable it), so forgetting it is a TypeError, never a
+silent no-op.
 """
 from .core import (COOKIE_CONFIG, DEFAULT_API_PREFIXES, DEFAULT_EPOCH_PATH,
                    DEFAULT_EXEMPT_PATHS, DEFAULT_GATE_URL, DEFAULT_MAX_AGE,
                    Decision, GateConfigError, GatePolicy, decide, load_epoch,
                    load_secret)
 
-__version__ = "1.1.0"
+__version__ = "2.0.0"
 
 __all__ = [
     "COOKIE_CONFIG", "DEFAULT_API_PREFIXES", "DEFAULT_EPOCH_PATH",

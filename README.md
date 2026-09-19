@@ -32,7 +32,7 @@ the prose and loses the behaviour, so the behaviour lives here now.
 from thedallasan_gate import install_flask_gate
 
 app = Flask(__name__)
-install_flask_gate(app)                    # raises if FLASK_SECRET_KEY is unset
+install_flask_gate(app, session_epoch_path=None)   # raises if FLASK_SECRET_KEY is unset
 ```
 
 ```python
@@ -40,11 +40,16 @@ install_flask_gate(app)                    # raises if FLASK_SECRET_KEY is unset
 from thedallasan_gate import GateMiddleware, load_secret
 
 app.add_middleware(GateMiddleware, secret_key=load_secret(),
-                   exempt_paths={"/api/health", "/quick-log"})
+                   exempt_paths={"/api/health", "/quick-log"},
+                   session_epoch_path=None)
 ```
 
 Both **raise** when the secret is missing. There is no `enabled=False`, and a test
 asserts there never is — that parameter is the bug this package exists to remove.
+
+`session_epoch_path` has no default either (v2.0.0, #5) — pass `None` to
+decline central revocation, or a path to enable it (below). Omitting it is a
+`TypeError` at the call site, not a silent no-op.
 
 ### Options
 
@@ -56,7 +61,7 @@ asserts there never is — that parameter is the bug this package exists to remo
 | `api_prefixes` | `("/api/",)` | Paths under these get a JSON 401 instead of a redirect. |
 | `max_age` | 31 days | ASGI only — caps how long a captured cookie stays replayable. |
 | `extra_allow` | `None` | ASGI only — a predicate for an app-specific bypass. |
-| `session_epoch_path` | `None` | Opts this app into central revocation (below). `None` = unchanged behaviour. |
+| `session_epoch_path` | **none — required** | `None` = decline; a path = opt this app into central revocation (below). No default since v2.0.0 (#5). |
 
 ## Session revocation (#27)
 
@@ -84,10 +89,15 @@ To revoke every outstanding session on every opted-in app at once:
 python3 scripts/revoke_sessions.py /srv/.session-epoch
 ```
 
-Three things worth knowing:
+Four things worth knowing:
 
-- **Opt-in per app, not a flag day.** Passing `None` (the default) leaves an
-  app's behaviour byte-for-byte identical to v1.0.0. Adopt it app by app.
+- **Opt-in per app, not a flag day.** Passing `None` leaves an app's
+  behaviour byte-for-byte identical to v1.0.0. Adopt it app by app.
+- **The choice must be stated, not left off (v2.0.0, #5).** `session_epoch_path`
+  has no default — two of the five v1.1.0 rollout branches passed CI while
+  enabling revocation for nobody, because forgetting the kwarg silently kept
+  it at its old `None` default. Omitting it now is a `TypeError`, not a
+  quietly-accepted "no".
 - **Missing the file when opted in is a startup error, never a silent no-op** —
   `load_epoch()` raises at install/construction time, the same contract
   `load_secret()` already has for `FLASK_SECRET_KEY`. Bootstrap the file once
@@ -105,10 +115,18 @@ unioning would let a path be opened without that being visible where it happens.
 Pin by tag, as a real dependency line:
 
 ```
-thedallasan-gate @ git+https://github.com/corbyoliver/thedallasan-gate@v1.0.0
+thedallasan-gate @ git+https://github.com/corbyoliver/thedallasan-gate@v2.0.0
 ```
 
 For development: `pip install -e .`
+
+**v2.0.0 is a breaking change (#5): `session_epoch_path` has no default.**
+Every consumer still pinned at `@v1.0.0`/`@v1.1.0` is unaffected until its own
+pin is bumped — that pinning discipline is exactly what makes this safe to
+release without a coordinated same-day rollout across all five apps. Bumping
+one app's pin means adding `session_epoch_path=None` (or a real path) at its
+`install_flask_gate`/`GateMiddleware` call site in the same commit, or the app
+fails to start.
 
 > This package was private until 2026-08-05, installed from a wheel copied onto
 > the server by hand and recorded in each consumer's `requirements.txt` as a

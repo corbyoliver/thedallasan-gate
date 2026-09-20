@@ -66,7 +66,14 @@ class GateMiddleware(BaseHTTPMiddleware):
             # that silently permits everything even by passing "" directly.
             raise ValueError("GateMiddleware requires a non-empty secret_key")
         if session_epoch_path is not None:
-            load_epoch(session_epoch_path)          # fail at construction, not mid-request
+            # Starlette builds the middleware stack lazily, so this actually
+            # raises at app startup (when the stack is built), not at this
+            # __init__ call or at import time. A consumer's test must exercise
+            # startup (e.g. `with TestClient(app):`) to observe it — a bare
+            # `pytest.raises(...)` around the import passes vacuously. The
+            # fail-closed property still holds: under uvicorn, startup is boot,
+            # so systemd sees the process die either way (thedallasan-gate#4).
+            load_epoch(session_epoch_path)
         self._serializer = flask_session_serializer(secret_key)
         self._max_age = max_age
         self._extra_allow = extra_allow

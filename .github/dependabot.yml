@@ -1,0 +1,23 @@
+# Weekly dependency updates, grouped into one PR per ecosystem so they
+# arrive as a single reviewable batch. Dependabot only opens PRs; CI gates
+# them and nothing merges automatically. Added 2026-10-12.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      pip-root:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      github-actions-root:
+        patterns: ["*"]

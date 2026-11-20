@@ -17,6 +17,7 @@ after any app adopts the feature logs out every existing session on that app,
 including a currently-logged-in Corbett — expected, not a bug: an old cookie
 was minted before revocation existed and carries no epoch to match.
 """
+import os
 import pathlib
 import secrets
 import sys
@@ -27,8 +28,13 @@ DEFAULT_PATH = "/srv/.session-epoch"
 def main() -> int:
     path = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_PATH)
     existed = path.exists()
-    path.write_text(secrets.token_hex(16))
-    path.chmod(0o644)
+    # Atomic: write a sibling file, set its mode, then rename over the target.
+    # write_text() truncates first, and every opted-in app reads this file on
+    # every request, so a request in that window read an empty epoch.
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(secrets.token_hex(16))
+    tmp.chmod(0o644)
+    os.replace(tmp, path)
     verb = "Bumped" if existed else "Bootstrapped"
     print(f"{verb} {path} — every session cookie minted before this moment, "
           f"on every app that checks this file, is now invalid.")

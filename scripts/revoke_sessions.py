@@ -27,7 +27,9 @@ DEFAULT_PATH = "/srv/.session-epoch"
 
 
 def main() -> int:
-    path = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_PATH)
+    # resolve(): os.replace() below would swap a symlink for a regular file, and
+    # the apps reading the link's target would never see the new epoch.
+    path = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_PATH).resolve()
     existed = path.exists()
     # Atomic: write a sibling file, set its mode, then rename over the target.
     # write_text() truncates first, and every opted-in app reads this file on
